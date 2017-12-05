@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<title>Properties to YAML</title>
+<meta name="description" content="properties转yaml,properties to yaml">
+<meta name="keywords" content="properties,yaml,yml">
+<link href="" rel="stylesheet">
+<script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+<script src="https://cdn.bootcss.com/js-yaml/3.10.0/js-yaml.min.js"></script>
+<style type="text/css">
+	html,body{height:100%} 
+</style>
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-110073294-2"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-110073294-2');
+</script>
+
+</head>
+<body>
+	<script type="text/javascript">
+		/** Parse .properties files */
+    function parseData(data) {
+    	var dataresult = {}
+
+        var parsed = '';
+        var lines = data.split(/\n/);
+        var regPlaceHolder = /(\{\d+})/g;
+        var regRepPlaceHolder = /\{(\d+)}/g;
+        var unicodeRE = /(\\u.{4})/ig;
+        for (var i=0,j=lines.length;i<j;i++) {
+            var line = lines[i];
+
+            line = line.trim();
+            if (line.length > 0 && line.match("^#") != "#") { // skip comments
+                var pair = line.split('=');
+                if (pair.length > 0) {
+                    /** Process key & value */
+                    var name = decodeURI(pair[0]).trim();
+                    var value = pair.length == 1 ? "" : pair[1];
+                    // process multi-line values
+                    while (value.search(/\\$/) != -1) {
+                        value = value.substring(0, value.length - 1);
+                        value += lines[++i].trimRight();
+                    }
+                    // Put values with embedded '='s back together
+                    for (var s = 2; s < pair.length; s++) {
+                        value += '=' + pair[s];
+                    }
+                    value = value.trim();
+
+                    var unicodeMatches = value.match(unicodeRE);
+                    if (unicodeMatches) {
+                        unicodeMatches.forEach(function (match) {
+                            value = value.replace(match, unescapeUnicode(match));
+                        });
+                    }
+                    // add to map
+                     dataresult[name] = value;
+                    
+                } // END: if(pair.length > 0)
+            } // END: skip comments
+        }
+        eval(parsed);
+        return dataresult
+    }
+
+    /** Make sure namespace exists (for keys with dots in name) */
+    // TODO key parts that start with numbers quietly fail. i.e. month.short.1=Jan
+    function checkKeyNamespace(key) {
+
+        var regDot = /\./;
+        if (regDot.test(key)) {
+            var fullname = '';
+            var names = key.split(/\./);
+            for (var i=0,j=names.length;i<j;i++) {
+                var name = names[i];
+
+                if (i > 0) {
+                    fullname += '.';
+                }
+
+                fullname += name;
+                if (eval('typeof ' + fullname + ' == "undefined"')) {
+                    eval(fullname + '={};');
+                }
+            }
+        }
+    }
+    $(function(){
+    	$("#parse").click(function(){
+    		var data = parseData($("#propertyText").val())
+    		var mapData = {}
+    		if (data) {
+    			for(var i in data){
+    				var splitKey = i.split(".")
+    				var preMapData = mapData
+    				for (var j = 0; j < splitKey.length; j++) {
+    					var k = splitKey[j]
+    					if (!preMapData[k]) {
+    						preMapData[k] = {}
+    					}
+    					if (j!=splitKey.length-1) {
+    						preMapData = preMapData[k]	
+    					}
+    					
+    				}
+    				preMapData[splitKey[splitKey.length-1]] = data[i]
+    			}
+
+    			console.log(mapData)
+    		}
+    		var ydata = jsyaml.safeDump(mapData,{
+    			flowLevel: 3,
+				styles: {
+					'!!int'  : 'hexadecimal',
+				    '!!null' : 'camelcase'
+				}
+    		})
+    		$("#ymlText").text(ydata)
+    	})	
+    })
+	</script>
+	<div style="height: 100%;">
+		<textarea id="propertyText" style="width:46%;height: 100%;float: left;"></textarea>
+		<button id="parse" style="margin:auto auto;">Convert</button>
+		<pre id="ymlText" style="padding: 10px; width:46%;height: 100%;float: right;background-color: #f5f5f5;border:1px solid #ccc;margin:0;"></pre>	
+	</div>
+    
+</body>
+</html>
